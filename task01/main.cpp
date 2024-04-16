@@ -6,6 +6,7 @@
 #include <cmath>
 //
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#define PI 3.14159265358979323846
 #include "stb_image_write.h"
 
 /**
@@ -75,7 +76,7 @@ void draw_polygon(
         float p1x = polygon_xy[i1_vtx * 2 + 0] - x;
         float p1y = polygon_xy[i1_vtx * 2 + 1] - y;
         // write a few lines of code to compute winding number (hint: use atan2)
-        winding_number += atan2(p1x * p0y - p1y * p0x, p0x * p1x + p0y * p1y) / (2 * M_PI);
+        winding_number += atan2(p1x * p0y - p1y * p0x, p0x * p1x + p0y * p1y) / (2 * PI);
       }
       const int int_winding_number = int(std::round(winding_number));
       if (int_winding_number == 1)
