@@ -11,13 +11,13 @@
 #include "Eigen/Core"
 #include "Eigen/Geometry"
 
-
 /**
  * Compute 4x4 homogeneous transformation matrix for camera
  * this transformation matrix transform from global coordinate to normalized device coordinates (i.e., [-1,+1]^3 )
  * @return
  */
-Eigen::Matrix4f camera_transformation() {
+Eigen::Matrix4f camera_transformation()
+{
   const float near_clipping_dist = 0.5;
   const float far_clipping_dist = 4.0;
   const float frustrum_near_size = 0.55;
@@ -50,25 +50,41 @@ void draw_3d_triangle_with_texture(
     std::vector<unsigned char> &img_data_out,
     unsigned int width_tex,
     unsigned int height_tex,
-    std::vector<unsigned char> &img_data_tex) {
-  for (unsigned int ih = 0; ih < height_out; ++ih) {
-    for (unsigned int iw = 0; iw < width_out; ++iw) {
+    std::vector<unsigned char> &img_data_tex)
+{
+  for (unsigned int ih = 0; ih < height_out; ++ih)
+  {
+    for (unsigned int iw = 0; iw < width_out; ++iw)
+    {
       const auto s = Eigen::Vector2f( // coordinate of the pixel in the normalized device coordinate [-1,1]^2
           ((float(iw) + 0.5f) * 2.f) / float(width_out) - 1.f,
           1.f - ((float(ih) + 0.5f) * 2.f) / float(height_out));
-      const auto r0 = q0.hnormalized()({0,1}); // coordinate of the point 0 in the normalized device coordinate [-1,1]^2
-      const auto r1 = q1.hnormalized()({0,1});
-      const auto r2 = q2.hnormalized()({0,1});
-      const float area0 = (r1 - s).cross(r2 - s);  // area of the 2d triangle connecting (s, r1, r2)
+      const auto r0 = q0.hnormalized()({0, 1}); // coordinate of the point 0 in the normalized device coordinate [-1,1]^2
+      const auto r1 = q1.hnormalized()({0, 1});
+      const auto r2 = q2.hnormalized()({0, 1});
+      const float area0 = (r1 - s).cross(r2 - s); // area of the 2d triangle connecting (s, r1, r2)
       const float area1 = (r2 - s).cross(r0 - s);
       const float area2 = (r0 - s).cross(r1 - s);
-      if (area0 < 0. || area1 < 0. || area2 < 0.) { continue; } // the pixel is outside the triangle (r0, r1, r2)
-      Eigen::Vector3f bc = Eigen::Vector3f(area0, area1, area2) / (area0 + area1 + area2); // barycentric coordinate on screen
-      // `bc` gives the barycentric coordinate **on the screen** and it is distorted.
-      // Compute the barycentric coordinate ***on the 3d triangle** below that gives the correct texture mapping.
-      // (Hint: formulate a linear system with 4x4 coefficient matrix and solve it to get the barycentric coordinate)
+      if (area0 < 0. || area1 < 0. || area2 < 0.) // the pixel is outside the triangle (r0, r1, r2)
+      {
+        continue;
+      }
+      // Eigen::Vector3f bc = Eigen::Vector3f(area0, area1, area2) / (area0 + area1 + area2); // barycentric coordinate on screen
+      //  `bc` gives the barycentric coordinate **on the screen** and it is distorted.
+      //  Compute the barycentric coordinate ***on the 3d triangle** below that gives the correct texture mapping.
+      //  (Hint: formulate a linear system with 4x4 coefficient matrix and solve it to get the barycentric coordinate)
       Eigen::Matrix4f coeff;
       Eigen::Vector4f rhs;
+
+      coeff << q0[0], q1[0], q2[0], -s[0],
+          q0[1], q1[1], q2[1], -s[1],
+          q0[3], q1[3], q2[3], -1.f,
+          1.f, 1.f, 1.f, 0.f;
+
+      rhs << 0.f, 0.f, 0.f, 1.f;
+      Eigen::Vector4f bc = coeff.inverse() * rhs;
+
+      // H = [[f, 0, 0], [0, f, 0], [0, 0, 1]],
 
       // do not change below
       auto uv = uv0 * bc[0] + uv1 * bc[1] + uv2 * bc[2]; // uv coordinate of the pixel
@@ -83,7 +99,8 @@ void draw_3d_triangle_with_texture(
   }
 }
 
-int main() {
+int main()
+{
   // texture image data
   int width_tex, height_tex;
   std::vector<unsigned char> img_data_tex;
@@ -104,7 +121,7 @@ int main() {
   const auto uv3 = Eigen::Vector2f(0.0, 1.0); // texture coordinate of point3 (top-left of texture image)
   // ndc: normalized device coordinate
   Eigen::Matrix4f transform_xyz2ndc = camera_transformation(); // Homography transformation matrix for camera view
-  auto q0 = transform_xyz2ndc * p0.homogeneous(); // transformed position of point 0 in homogeneous coordinate
+  auto q0 = transform_xyz2ndc * p0.homogeneous();              // transformed position of point 0 in homogeneous coordinate
   auto q1 = transform_xyz2ndc * p1.homogeneous();
   auto q2 = transform_xyz2ndc * p2.homogeneous();
   auto q3 = transform_xyz2ndc * p3.homogeneous();
