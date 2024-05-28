@@ -43,9 +43,9 @@ auto sample_hemisphere(
   const float phi = 2.f * float(M_PI) * unirand.y();
 
   // the code to uniformly sample hemisphere (z-up)
-  const float z = unirand.x();
-  const float r = std::sqrt(1.f - z * z);
-  auto dir_loc = Eigen::Vector3f( // direction in normal coordinate
+  const float z = unirand.x();            // cos(theta)
+  const float r = std::sqrt(1.f - z * z); // sin(theta
+  auto dir_loc = Eigen::Vector3f(         // direction in normal coordinate
       r * std::cos(phi),
       r * std::sin(phi),
       z);
@@ -53,6 +53,7 @@ auto sample_hemisphere(
 
   // For Problem 4, write some code below to sample hemisphere with cosign weight
   // (i.e., the sampling frequency is higher at the top)
+
   float pdf = z / float(M_PI);
 
   // end of Problem 4. Do not modify the two lines below
@@ -268,10 +269,6 @@ int main()
             // sum += 1.f; // Problem 3: This is a bug. write some correct code (hint: use `dir.dot(nrm)`, `pdf`, `M_PI`).
             sum += dir.dot(nrm) / (pdf * M_PI);
           }
-        }
-        if (sum > num_sample_ao)
-        { // clamp the value
-          sum = float(num_sample_ao);
         }
         img_data_ao[ih * img_width + iw] = sum / float(num_sample_ao); // do not change
       }
