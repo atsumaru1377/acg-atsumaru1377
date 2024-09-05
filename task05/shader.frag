@@ -26,6 +26,12 @@ float sdSphere( vec3 p, float s )
   return length(p)-s;
 }
 
+float opUnion( float d1, float d2 ) { return min(d1,d2); }
+
+float opSubtraction( float d1, float d2 ) { return max(d1,-d2); }
+
+float opIntersection( float d1, float d2 ) { return max(d1,d2); }
+
 // here is the parameter use to draw the objects
 float len_cylinder = 0.8; // length of the cylinder
 float rad_cylinder = 0.45; // radius of the cylinder
@@ -35,16 +41,40 @@ float box_size = 0.6; // size of box
 /// singed distance function at the position `pos`
 float SDF(vec3 pos)
 {
-  float d0 = sdCappedCylinder(pos, len_cylinder, rad_cylinder);
+  float d_cylinderX = sdCappedCylinder(pos.zxy, len_cylinder, rad_cylinder);
+  float d_cylinderY = sdCappedCylinder(pos.yzx, len_cylinder, rad_cylinder);
+  float d_cylinderZ = sdCappedCylinder(pos.xyz, len_cylinder, rad_cylinder);
+  float d_sphere = sdSphere(pos, rad_sphere);
+  float d_box = sdBox(pos, vec3(box_size, box_size, box_size));
+  float d_cylinders = opUnion(opUnion(d_cylinderX, d_cylinderY), d_cylinderZ);
+  float d_sphere_box = opIntersection(d_sphere, d_box);
+  float d = opSubtraction(d_sphere_box, d_cylinders);
   // write some code to combine the signed distance fields above to design the object described in the README.md
-  return d0; // comment out and define new distance
+  //return d0; // comment out and define new distance
+  return d;
 }
 
 /// RGB color at the position `pos`
 vec3 SDF_color(vec3 pos)
 {
   // write some code below to return color (RGB from 0 to 1) to paint the object describe in README.md
-  return vec3(0., 1., 0.); // comment out and define new color
+  float d_cylinderX = sdCappedCylinder(pos.zxy, len_cylinder, rad_cylinder);
+  float d_cylinderY = sdCappedCylinder(pos.yzx, len_cylinder, rad_cylinder);
+  float d_cylinderZ = sdCappedCylinder(pos.xyz, len_cylinder, rad_cylinder);
+  float d_cylinders = opUnion(opUnion(d_cylinderX, d_cylinderY), d_cylinderZ);
+
+  float d_sphere = sdSphere(pos, rad_sphere);
+  float d_box = sdBox(pos, vec3(box_size, box_size, box_size));
+  if (d_cylinders <= 0.0) {
+    return vec3(0., 1., 0.);
+  }
+  if (d_sphere <= 0.0) {
+    return vec3(1., 0., 0.);
+  }
+  if (d_box <= 0.0) {
+    return vec3(0., 0., 1.);
+  }
+  //return vec3(0., 1., 0.); // comment out and define new color
 }
 
 uniform float time; // current time given from CPU
@@ -62,7 +92,7 @@ void main()
   // gl_FragCoord: the coordinate of the pixel
   // left-bottom is (0,0), right-top is (W,H)
   // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/gl_FragCoord.xhtml
-  vec2 scr_xy = gl_FragCoord.xy / vec2(500,500) * 2.0 - vec2(1,1); // canonical screen position [-1,+1] x [-1,+1]
+  vec2 scr_xy = gl_FragCoord.xy / vec2(1000,1000) * 2.0 - vec2(1,1); // canonical screen position [-1,+1] x [-1,+1]
   vec3 src = frame_x * scr_xy.x + frame_y * scr_xy.y + frame_z * 1;  // source of ray from pixel
   vec3 dir = -frame_z;  // direction of ray (looking at the origin)
 
