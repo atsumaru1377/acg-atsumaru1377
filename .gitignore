@@ -62,7 +62,7 @@ external/glfwbuild
 
 external/eigen-*
 external/eigenlib
-*.DS_Store 
+*.DS_Store
 build
 
 */main_ans.cpp

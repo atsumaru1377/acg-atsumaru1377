@@ -24,7 +24,7 @@ TA: Kenji Tojo
 
 ## Time
 
-Monday 2nd period, 10:25am - 12:10pm
+Monday 2rd period, 10:25am - 12:10pm
 
 
 ## Course Description
@@ -152,4 +152,3 @@ Look at the following document.
 - [Physics-based Animation2023S (Another course by the instructor) ](https://github.com/nobuyuki83/Physics-based_Animation_2023S)
 - [Physics-based Animation2021S (Another course by the instructor) ](https://github.com/nobuyuki83/Physics-based_Animation_2021S)
 - [Applied Computer Graphics 2022S (The same course two years ago)](https://github.com/nobuyuki83/Applied_Computer_Graphics_2022S)
-

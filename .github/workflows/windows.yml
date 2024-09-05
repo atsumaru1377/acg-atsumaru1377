@@ -16,7 +16,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-
     - name: install glfw
       run: |
         git submodule update --init -- external/glfw
