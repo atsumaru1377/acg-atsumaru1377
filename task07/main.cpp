@@ -29,20 +29,31 @@ auto intersection_ray_sphere(
     const Eigen::Vector3f &ray_src,
     const Eigen::Vector3f &ray_dir,
     const Eigen::Vector3f &center,
-    float rad) -> std::optional<std::tuple<Eigen::Vector3f, Eigen::Vector3f, float>> {
+    float rad) -> std::optional<std::tuple<Eigen::Vector3f, Eigen::Vector3f, float>>
+{
   float depth0 = (center - ray_src).dot(ray_dir);
-  if (depth0 < 0.f) { return {}; }
+  if (depth0 < 0.f)
+  {
+    return {};
+  }
   float sqdist = (ray_src + depth0 * ray_dir - center).squaredNorm();
-  if (rad * rad - sqdist < 0.f) { return {}; }
+  if (rad * rad - sqdist < 0.f)
+  {
+    return {};
+  }
   float depth1 = depth0 - sqrt(rad * rad - sqdist);
-  if (depth1 < 0.f) { return {}; }
+  if (depth1 < 0.f)
+  {
+    return {};
+  }
   auto hit_pos = ray_src + depth1 * ray_dir;
   auto hit_normal = (hit_pos - center).normalized();
   return std::make_tuple(hit_pos, hit_normal, depth1);
 }
 
 auto local_to_world_vector_transformation(
-    const Eigen::Vector3f &nrm) -> Eigen::Matrix3f {
+    const Eigen::Vector3f &nrm) -> Eigen::Matrix3f
+{
   auto basis_x = Eigen::Vector3f(1.f, 0.f, 0.f);
   const auto basis_y = nrm.cross(basis_x).normalized();
   basis_x = basis_y.cross(nrm);
@@ -53,14 +64,15 @@ auto local_to_world_vector_transformation(
 
 auto sampling_brdf_lambert(
     const Eigen::Vector3f &nrm,
-    const Eigen::Vector2f &unirand) -> std::pair<Eigen::Vector3f, float> {
+    const Eigen::Vector2f &unirand) -> std::pair<Eigen::Vector3f, float>
+{
   const float r = std::sqrt(unirand.x());
   const float phi = 2.f * float(M_PI) * unirand.y();
   const float z = std::sqrt(1.f - r * r);
   const auto dir_loc = Eigen::Vector3f( // direction in normal coordinate
-      r * std::cos(phi), // this is std::sqrt(u0)*std::cos(phi)
-      r * std::sin(phi), // this is std::sqrt(u0)*std::sin(phi)
-      z); // this can be std::sqrt(1-u0)
+      r * std::cos(phi),                // this is std::sqrt(u0)*std::cos(phi)
+      r * std::sin(phi),                // this is std::sqrt(u0)*std::sin(phi)
+      z);                               // this can be std::sqrt(1-u0)
   const Eigen::Matrix3f loc2world = local_to_world_vector_transformation(nrm);
   const Eigen::Vector3f dir_out = loc2world * dir_loc;
   return {dir_out, 1.f / float(M_PI)};
@@ -70,7 +82,8 @@ auto sampling_brdf_specular(
     const Eigen::Vector3f &nrm,
     const Eigen::Vector3f &dir_in,
     float shiness,
-    const Eigen::Vector2f &unirand) -> std::pair<Eigen::Vector3f, float> {
+    const Eigen::Vector2f &unirand) -> std::pair<Eigen::Vector3f, float>
+{
   const Eigen::Vector3f dir_mirror = dir_in - 2.f * dir_in.dot(nrm) * nrm;
   const float phi = 2.f * float(M_PI) * unirand.y();
   const float cos_alpha = std::pow(1.f - unirand.x(), 1.f / (shiness + 1.f));
@@ -102,7 +115,8 @@ float pdf_brdf_phong(
     const Eigen::Vector3f &dir_out,
     float ratio_diffuse,
     float ratio_specular,
-    float shiness) {
+    float shiness)
+{
   float pdf_diffuse = dir_out.dot(nrm) / float(M_PI);
   const Eigen::Vector3f dir_mirror = dir_in - 2.f * dir_in.dot(nrm) * nrm;
   float cos_alpha = dir_mirror.dot(dir_out);
@@ -110,15 +124,17 @@ float pdf_brdf_phong(
   return (pdf_diffuse * ratio_diffuse + pdf_specular * ratio_specular) / (ratio_diffuse + ratio_specular);
 }
 
-class Sphere {
- public:
+class Sphere
+{
+public:
   const Eigen::Vector3f pos;
   const float rad;
   const float shiness;
   const float ratio_specular;
   const float ratio_diffuse;
   const float emission;
- public:
+
+public:
   /**
    * sampling the incoming light direction based on BRDF
    * @param nrm  normal of the surface
@@ -129,18 +145,29 @@ class Sphere {
   [[nodiscard]] auto sample_reflection_based_on_brdf(
       const Eigen::Vector3f &nrm,
       const Eigen::Vector3f &dir_out,
-      std::mt19937& rdeng) const -> Eigen::Vector3f {
+      std::mt19937 &rdeng) const -> Eigen::Vector3f
+  {
     float sum_ratio = ratio_specular + ratio_diffuse;
-    if (ratio_specular <= 0.f && ratio_diffuse <= 0.f) { return {1., 0., 0,}; }
-    auto udist01 = std::uniform_real_distribution<float>(0.f,1.f);
+    if (ratio_specular <= 0.f && ratio_diffuse <= 0.f)
+    {
+      return {
+          1.,
+          0.,
+          0,
+      };
+    }
+    auto udist01 = std::uniform_real_distribution<float>(0.f, 1.f);
     const Eigen::Vector2f unirand(udist01(rdeng), udist01(rdeng));
     const float rnd0 = udist01(rdeng);
 
     Eigen::Vector3f dir_world(0., 0., 0.);
-    if (rnd0 < ratio_diffuse / sum_ratio) { // diffuse
+    if (rnd0 < ratio_diffuse / sum_ratio)
+    { // diffuse
       auto hoge = sampling_brdf_lambert(nrm, unirand);
       dir_world = hoge.first;
-    } else { // specular
+    }
+    else
+    { // specular
       auto hoge = sampling_brdf_specular(nrm, dir_out, shiness, unirand);
       dir_world = hoge.first;
     }
@@ -156,8 +183,12 @@ class Sphere {
   [[nodiscard]] float brdf(
       const Eigen::Vector3f &dir_in,
       const Eigen::Vector3f &dir_out,
-      const Eigen::Vector3f &dir_nrm) const {
-    if (ratio_specular <= 0.f && ratio_diffuse <= 0.f) { return 0.f; }
+      const Eigen::Vector3f &dir_nrm) const
+  {
+    if (ratio_specular <= 0.f && ratio_diffuse <= 0.f)
+    {
+      return 0.f;
+    }
     const Eigen::Vector3f dir_mirror = dir_in - 2.f * dir_in.dot(dir_nrm) * dir_nrm;
     float cos_alpha = dir_mirror.dot(dir_out);
     float brdf_specular = std::pow(cos_alpha, shiness) * (shiness + 1.f) / (2.f * float(M_PI));
@@ -171,10 +202,11 @@ class Sphere {
    * @param dir_out outgoing light direction
    * @return PDF
    */
-  [[nodiscard]]float pdf(
+  [[nodiscard]] float pdf(
       const Eigen::Vector3f &nrm,
       const Eigen::Vector3f &dir_in,
-      const Eigen::Vector3f &dir_out) const {
+      const Eigen::Vector3f &dir_out) const
+  {
     return pdf_brdf_phong(
         nrm, dir_in, dir_out,
         ratio_diffuse, ratio_specular, shiness);
@@ -186,37 +218,32 @@ class Sphere {
 const Sphere spheres[4] = {
     {
         {1.f, 1.f, 0.f}, // position
-        0.4f, // rad
-        2000.f, // shiness
-        0.0f, // specular
-        0.0f, // diffuse
-        1.f // emission
+        0.4f,            // rad
+        2000.f,          // shiness
+        0.0f,            // specular
+        0.0f,            // diffuse
+        1.f              // emission
     },
     {
         {-1.f, -1.f, -1.f}, // position
-        1.0f, // rad
-        2000.f, // shiness
-        0.8f, // specular
-        0.2f, // diffuse
-        0.f // emission
+        1.0f,               // rad
+        2000.f,             // shiness
+        0.8f,               // specular
+        0.2f,               // diffuse
+        0.f                 // emission
     },
-    {
-        {+1.f, -1.f, -1.f}, // position
-        1.f,
-        2000.f,
-        0.5f,
-        0.5f,
-        0.f
-    },
-    {
-      {-1.f, +1.f, -1.f}, // position
-      1.f,
-          2000.f,
-          0.2f,
-          0.8f,
-          0.f
-    }
-};
+    {{+1.f, -1.f, -1.f}, // position
+     1.f,
+     2000.f,
+     0.5f,
+     0.5f,
+     0.f},
+    {{-1.f, +1.f, -1.f}, // position
+     1.f,
+     2000.f,
+     0.2f,
+     0.8f,
+     0.f}};
 
 /**
  * Search Ray and screen hit
@@ -227,21 +254,27 @@ const Sphere spheres[4] = {
 auto hit_scene(
     const Eigen::Vector3f &ray_src,
     const Eigen::Vector3f &ray_dir)
--> std::tuple<Eigen::Vector3f, Eigen::Vector3f, unsigned int> {
+    -> std::tuple<Eigen::Vector3f, Eigen::Vector3f, unsigned int>
+{
   float min_depth = std::numeric_limits<float>::max();
   std::optional<std::tuple<Eigen::Vector3f, Eigen::Vector3f, float>> hit = std::nullopt;
   int i_object = -1;
-  for( int i_sphere = 0; i_sphere < 4; ++i_sphere ) {
+  for (int i_sphere = 0; i_sphere < 4; ++i_sphere)
+  {
     auto hit0 = intersection_ray_sphere(
         ray_src, ray_dir,
         spheres[i_sphere].pos, spheres[i_sphere].rad);
-    if (hit0 && std::get<2>(hit0.value()) < min_depth) {
+    if (hit0 && std::get<2>(hit0.value()) < min_depth)
+    {
       hit = hit0;
       min_depth = std::get<2>(hit0.value());
       i_object = i_sphere;
     }
   }
-  if (!hit) { return {Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), -1}; }
+  if (!hit)
+  {
+    return {Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), -1};
+  }
   return {std::get<0>(hit.value()), std::get<1>(hit.value()), i_object};
 }
 
@@ -259,9 +292,17 @@ auto sampling_light(
     const Eigen::Vector3f &pos,
     const Eigen::Vector3f &dir_out,
     unsigned int i_object,
-    std::mt19937& rndeng) -> Eigen::Vector3f {
-  if (i_object == 0) { return {1., 0., 0.,}; }
-  auto udist01 = std::uniform_real_distribution<float>(0.f,1.f);
+    std::mt19937 &rndeng) -> Eigen::Vector3f
+{
+  if (i_object == 0)
+  {
+    return {
+        1.,
+        0.,
+        0.,
+    };
+  }
+  auto udist01 = std::uniform_real_distribution<float>(0.f, 1.f);
   const Eigen::Vector2f unirand(udist01(rndeng), udist01(rndeng));
   auto light_center = spheres[0].pos;
   float light_rad = spheres[0].rad;
@@ -296,8 +337,12 @@ float pdf_light_sample(
     const Eigen::Vector3f &pos,
     const Eigen::Vector3f &dir_in,
     const Eigen::Vector3f &dir_out,
-    unsigned int hit0_object) {
-  if (hit0_object == 0) { return 1.0; }
+    unsigned int hit0_object)
+{
+  if (hit0_object == 0)
+  {
+    return 1.0;
+  }
   auto light_center = spheres[0].pos;
   float light_rad = spheres[0].rad;
   float sin_theta_max_squared = light_rad * light_rad / (light_center - pos).squaredNorm();
@@ -309,9 +354,10 @@ float pdf_light_sample(
 
 auto get_ray_from_camera(
     unsigned int width, unsigned int height,
-    unsigned int iw, unsigned int ih) -> std::pair<Eigen::Vector3f, Eigen::Vector3f> {
-  auto cam_ray_src = Eigen::Vector3f(0., 0., 2.0); // focus point
-  float ndc_x = ((float(iw) + 0.5f) * 2.f / float(width) - 1.f); // normalized device x-coordinate [-1, +1]
+    unsigned int iw, unsigned int ih) -> std::pair<Eigen::Vector3f, Eigen::Vector3f>
+{
+  auto cam_ray_src = Eigen::Vector3f(0., 0., 2.0);                // focus point
+  float ndc_x = ((float(iw) + 0.5f) * 2.f / float(width) - 1.f);  // normalized device x-coordinate [-1, +1]
   float ndc_y = (1.f - (float(ih) + 0.5f) * 2.f / float(height)); // normalized device y-coordinate [-1, +1]
   float sensor_size = 0.5;
   Eigen::Vector3f position_on_sensor(ndc_x * sensor_size, ndc_y * sensor_size, 1.0);
@@ -320,14 +366,16 @@ auto get_ray_from_camera(
 }
 
 void output_float_image(
-    const char* fname,
+    const char *fname,
     unsigned int img_width,
     unsigned int img_height,
-    const std::vector<float>& img_data) {
+    const std::vector<float> &img_data)
+{
   std::vector<unsigned char> img_u8(img_height * img_width, 0);
-  for(int i=0;i<img_width*img_height;++i){
-    float data = img_data[img_height+i];
-    auto c = static_cast<unsigned char>(std::pow(data,1./2.2)*255.0); // gamma correction
+  for (int i = 0; i < img_width * img_height; ++i)
+  {
+    float data = img_data[img_height + i];
+    auto c = static_cast<unsigned char>(std::pow(data, 1. / 2.2) * 255.0); // gamma correction
     img_u8[i] = c;
   }
   stbi_write_png(
@@ -335,7 +383,8 @@ void output_float_image(
       img_width, img_height, 1, img_u8.data(), img_width);
 }
 
-int main() {
+int main()
+{
   std::mt19937 rndeng(std::random_device{}());
   const unsigned int img_width = 300;
   const unsigned int img_height = 300;
@@ -344,79 +393,123 @@ int main() {
   std::vector<float> img_light(img_height * img_width, 0.0);
   std::vector<float> img_mis(img_height * img_width, 0.0);
   //
-  for (unsigned int iw = 0; iw < img_width; ++iw) {
-    for (unsigned int ih = 0; ih < img_height; ++ih) {
-      const auto[cam_ray_src, cam_ray_dir] = get_ray_from_camera(img_width, img_height, iw, ih);
+  for (unsigned int iw = 0; iw < img_width; ++iw)
+  {
+    for (unsigned int ih = 0; ih < img_height; ++ih)
+    {
+      const auto [cam_ray_src, cam_ray_dir] = get_ray_from_camera(img_width, img_height, iw, ih);
       //
-      const auto[hit0_pos, hit0_normal, hit0_object]  = hit_scene(cam_ray_src, cam_ray_dir);
-      if (hit0_object == -1) {continue;} // does not hit anything
+      const auto [hit0_pos, hit0_normal, hit0_object] = hit_scene(cam_ray_src, cam_ray_dir);
+      if (hit0_object == -1)
+      {
+        continue;
+      } // does not hit anything
       const int nsample = 100;
       // -----------------
       // light sampling
       img_light[(ih * img_width + iw)] += spheres[hit0_object].emission;
-      for (int isample = 0; isample < nsample; ++isample) {
+      for (int isample = 0; isample < nsample; ++isample)
+      {
         // sampling light
         auto hit0_refl = sampling_light(hit0_normal, hit0_pos, cam_ray_dir, hit0_object, rndeng);
         // BRDF for sampled light direction
         float hit0_brdf = spheres[hit0_object].brdf(cam_ray_dir, hit0_refl, hit0_normal);
-        if (hit0_brdf <= 0.f) { continue; }
+        if (hit0_brdf <= 0.f)
+        {
+          continue;
+        }
         // PDF for sampled light direction
         float hit0_pdf = pdf_light_sample(hit0_normal, hit0_pos, cam_ray_dir, hit0_refl, hit0_object);
         // How much light sampled light direction has
-        const auto[hit1_pos, hit1_normal, hit1_object]  = hit_scene(hit0_pos + hit0_normal * 0.01, hit0_refl);
-        if (hit1_object == -1){ continue; }
+        const auto [hit1_pos, hit1_normal, hit1_object] = hit_scene(hit0_pos + hit0_normal * 0.01, hit0_refl);
+        if (hit1_object == -1)
+        {
+          continue;
+        }
         float hit1_rad = spheres[hit1_object].emission;
         // compute the contribution for this pixel
-        float rad = 0.f; // replace this with some code
+        // calcurate "rad" to follow the equation : L_o(p, w_o) = \integral_{\Omega} f(w_o, w_i) L_i(p, w_i) (w_i, n) dw_i
+        float rad = hit1_rad * hit0_brdf * hit0_normal.dot(hit0_refl) / hit0_pdf / float(nsample);
         img_light[ih * img_width + iw] += rad;
       }
       // -----------------
       // BRDF sampling
       img_brdf[(ih * img_width + iw)] += spheres[hit0_object].emission;
-      for (int isample = 0; isample < nsample; ++isample) {
+      for (int isample = 0; isample < nsample; ++isample)
+      {
         // direction of reflected ray
         auto hit0_refl = spheres[hit0_object].sample_reflection_based_on_brdf(hit0_normal, cam_ray_dir, rndeng);
         // Brdf value for reflected ray
         float hit0_brdf = spheres[hit0_object].brdf(cam_ray_dir, hit0_refl, hit0_normal);
-        if (hit0_brdf <= 0.f) { continue; }
+        if (hit0_brdf <= 0.f)
+        {
+          continue;
+        }
         // PDF of the reflected ray
         const float hit0_pdf = spheres[hit0_object].pdf(hit0_normal, cam_ray_dir, hit0_refl);
         // how much light this reflected ray has
-        const auto[hit1_pos, hit1_normal, hit1_object]  = hit_scene(hit0_pos + hit0_normal * 0.01, hit0_refl);
-        if (hit1_object == -1){ continue; }
+        const auto [hit1_pos, hit1_normal, hit1_object] = hit_scene(hit0_pos + hit0_normal * 0.01, hit0_refl);
+        if (hit1_object == -1)
+        {
+          continue;
+        }
         float hit1_rad = spheres[hit1_object].emission;
         // compute the contribution for this pixel
-        float rad = 0.f; // replace this with some code
+        float rad = hit1_rad * hit0_brdf * hit0_normal.dot(hit0_refl) / hit0_pdf / float(nsample);
         img_brdf[ih * img_width + iw] += rad;
       }
       // -----------------
       // Multiple importance sampling
       img_mis[(ih * img_width + iw)] += spheres[hit0_object].emission;
       int num_half_sample = nsample / 2;
-      for (int isample = 0; isample < num_half_sample; ++isample) {
+      for (int isample = 0; isample < num_half_sample; ++isample)
+      {
         // reflected ray direction
         auto hit0_refl = spheres[hit0_object].sample_reflection_based_on_brdf(hit0_normal, cam_ray_dir, rndeng);
         // Brdf of the reflected ray
         float hit0_brdf = spheres[hit0_object].brdf(cam_ray_dir, hit0_refl, hit0_normal);
-        if (hit0_brdf <= 0.f) { continue; }
-        const auto[hit1_pos, hit1_normal, hit1_object]  = hit_scene(hit0_pos + hit0_normal * 0.01, hit0_refl);
-        if (hit1_object == -1){ continue; }
+        if (hit0_brdf <= 0.f)
+        {
+          continue;
+        }
+        const auto [hit1_pos, hit1_normal, hit1_object] = hit_scene(hit0_pos + hit0_normal * 0.01, hit0_refl);
+        if (hit1_object == -1)
+        {
+          continue;
+        }
         float hit1_rad = spheres[hit1_object].emission;
         float hit0_pdf_brdf_sample = spheres[hit0_object].pdf(hit0_normal, cam_ray_dir, hit0_refl);
         float hit0_pdf_light_sample = pdf_light_sample(hit0_normal, hit0_pos, cam_ray_dir, hit0_refl, hit0_object);
-        float rad = 0.f; // write some code
+
+        float w_brdf = hit0_pdf_brdf_sample / (hit0_pdf_brdf_sample + hit0_pdf_light_sample);
+        float w_light = hit0_pdf_light_sample / (hit0_pdf_brdf_sample + hit0_pdf_light_sample);
+
+        float rad = w_brdf * (hit1_rad * hit0_brdf * hit0_normal.dot(hit0_refl) / hit0_pdf_brdf_sample) / float(nsample) +
+                    w_light * (hit1_rad * hit0_brdf * hit0_normal.dot(hit0_refl) / hit0_pdf_light_sample) / float(nsample);
         img_mis[ih * img_width + iw] += rad;
       }
-      for (int isample = 0; isample < nsample / 2; ++isample) {
+      for (int isample = 0; isample < nsample / 2; ++isample)
+      {
         auto hit0_refl = sampling_light(hit0_normal, hit0_pos, cam_ray_dir, hit0_object, rndeng);
         float hit0_brdf = spheres[hit0_object].brdf(cam_ray_dir, hit0_refl, hit0_normal);
-        if (hit0_brdf <= 0.f) { continue; }
-        const auto[hit1_pos, hit1_normal, hit1_object]  = hit_scene(hit0_pos + hit0_normal * 0.01, hit0_refl);
-        if (hit1_object == -1){ continue; }
+        if (hit0_brdf <= 0.f)
+        {
+          continue;
+        }
+        const auto [hit1_pos, hit1_normal, hit1_object] = hit_scene(hit0_pos + hit0_normal * 0.01, hit0_refl);
+        if (hit1_object == -1)
+        {
+          continue;
+        }
         float hit1_rad = spheres[hit1_object].emission;
         float hit0_pdf_light_sample = pdf_light_sample(hit0_normal, hit0_pos, cam_ray_dir, hit0_refl, hit0_object);
         float hit0_pdf_brdf_sample = spheres[hit0_object].pdf(hit0_normal, cam_ray_dir, hit0_refl);
-        float rad = 0.f; // write some code
+
+        float w_brdf = hit0_pdf_brdf_sample / (hit0_pdf_brdf_sample + hit0_pdf_light_sample);
+        float w_light = hit0_pdf_light_sample / (hit0_pdf_brdf_sample + hit0_pdf_light_sample);
+
+        float rad = w_brdf * (hit1_rad * hit0_brdf * hit0_normal.dot(hit0_refl) / hit0_pdf_brdf_sample) / float(nsample) +
+                    w_light * (hit1_rad * hit0_brdf * hit0_normal.dot(hit0_refl) / hit0_pdf_light_sample) / float(nsample);
         img_mis[ih * img_width + iw] += rad;
       }
     }
@@ -431,6 +524,4 @@ int main() {
   output_float_image(
       (std::filesystem::path(PROJECT_SOURCE_DIR) / "out_mis.png").string().c_str(),
       img_width, img_height, img_mis);
-
-
 }
