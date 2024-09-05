@@ -24,7 +24,8 @@ std::mt19937 rndeng(std::random_device{}());
  * @return 3x3 Rotation matrix
  */
 auto local_to_world_vector_transformation(
-    const Eigen::Vector3f &nrm) -> Eigen::Matrix3f {
+    const Eigen::Vector3f &nrm) -> Eigen::Matrix3f
+{
   auto basis_x = Eigen::Vector3f(1.f, 0.f, 0.f);
   const auto basis_y = nrm.cross(basis_x).normalized();
   basis_x = basis_y.cross(nrm);
@@ -39,24 +40,26 @@ auto local_to_world_vector_transformation(
  * @return sampled direction and its PDF
  */
 auto sample_hemisphere(
-    const Eigen::Vector3f &nrm) -> std::pair<Eigen::Vector3f, float> {
+    const Eigen::Vector3f &nrm) -> std::pair<Eigen::Vector3f, float>
+{
   // const auto unirand = Eigen::Vector2f::Random() * 0.5f + Eigen::Vector2f(0.5, 0.5);
   auto dist_01 = std::uniform_real_distribution<float>(0.f, 1.f);
-  const auto unirand = Eigen::Vector2f(dist_01(rndeng),dist_01(rndeng));
+  const auto unirand = Eigen::Vector2f(dist_01(rndeng), dist_01(rndeng));
   const float phi = 2.f * float(M_PI) * unirand.y();
 
   // the code to uniformly sample hemisphere (z-up)
-  const float z = unirand.x();
-  const float r = std::sqrt(1.f - z * z);
-  auto dir_loc = Eigen::Vector3f( // direction in normal coordinate
+  const float z = unirand.x();            // cos(theta)
+  const float r = std::sqrt(1.f - z * z); // sin(theta
+  auto dir_loc = Eigen::Vector3f(         // direction in normal coordinate
       r * std::cos(phi),
       r * std::sin(phi),
       z);
-  float pdf = 0.5f / float(M_PI);
+  // float pdf = 0.5f / float(M_PI);
 
   // For Problem 4, write some code below to sample hemisphere with cosign weight
   // (i.e., the sampling frequency is higher at the top)
 
+  float pdf = z / float(M_PI);
 
   // end of Problem 4. Do not modify the two lines below
   const auto dir_out = local_to_world_vector_transformation(nrm) * dir_loc; // rotate the sample (zup -> nrm)
@@ -78,19 +81,24 @@ auto ray_triangle_intersection(
     unsigned int i_tri,
     const Eigen::MatrixX3i &tri2vtx,
     const Eigen::MatrixX3f &vtx2xyz)
--> std::optional<std::pair<Eigen::Vector3f, Eigen::Vector3f>> {
+    -> std::optional<std::pair<Eigen::Vector3f, Eigen::Vector3f>>
+{
   auto tet_volume = [](
-      const Eigen::Vector3f &p0,
-      const Eigen::Vector3f &p1,
-      const Eigen::Vector3f &p2,
-      const Eigen::Vector3f &p3) { return (p1 - p0).cross(p2 - p0).dot(p3 - p0) / 6.f; };
+                        const Eigen::Vector3f &p0,
+                        const Eigen::Vector3f &p1,
+                        const Eigen::Vector3f &p2,
+                        const Eigen::Vector3f &p3)
+  { return (p1 - p0).cross(p2 - p0).dot(p3 - p0) / 6.f; };
   auto p0 = vtx2xyz.row(tri2vtx(i_tri, 0));
   auto p1 = vtx2xyz.row(tri2vtx(i_tri, 1));
   auto p2 = vtx2xyz.row(tri2vtx(i_tri, 2));
   float v0 = tet_volume(p1, p2, ray_org + ray_dir, ray_org);
   float v1 = tet_volume(p2, p0, ray_org + ray_dir, ray_org);
   float v2 = tet_volume(p0, p1, ray_org + ray_dir, ray_org);
-  if (v0 < 0.f || v1 < 0.f || v2 < 0.f) { return std::nullopt; }
+  if (v0 < 0.f || v1 < 0.f || v2 < 0.f)
+  {
+    return std::nullopt;
+  }
   float sum_inv = 1.f / (v0 + v1 + v2);
   const Eigen::Vector3f q0 = (v0 * p0 + v1 * p1 + v2 * p2) * sum_inv;
   const Eigen::Vector3f n0 = (p1 - p0).cross(p2 - p0).normalized();
@@ -120,18 +128,42 @@ void search_collision_in_bvh(
     const Eigen::Vector3f &ray_dir,
     const Eigen::MatrixX3i &tri2vtx,
     const Eigen::MatrixX3f &vtx2xyz,
-    const std::vector<acg::BvhNode> &bvhnodes) {
+    const std::vector<acg::BvhNode> &bvhnodes)
+{
   // For problem 2, implement some code here to evaluate BVH
   // hint: use following function
   //   bvhnodes[i_bvhnode].intersect_bv(ray_org, ray_dir)
+  if (!bvhnodes[i_bvhnode].intersect_bv(ray_org, ray_dir))
+  {
+    return;
+  }
 
-  if (bvhnodes[i_bvhnode].is_leaf()) { // this is leaf node
+  if (bvhnodes[i_bvhnode].is_leaf())
+  { // this is leaf node
     const unsigned int i_tri = bvhnodes[i_bvhnode].i_node_left;
-    // do something
-  } else { // this is branch node
+    const auto res = ray_triangle_intersection(ray_org, ray_dir, i_tri, tri2vtx, vtx2xyz);
+    if (!res)
+    {
+      return;
+    }
+    const auto &[q0, n0] = res.value();
+    const float depth = (q0 - ray_org).dot(ray_dir);
+    if (hit_depth > depth)
+    {
+      is_hit = true;
+      hit_depth = depth;
+      hit_pos = q0;
+      hit_normal = n0;
+    }
+  }
+  else
+  {
+    // This is a branch node, recurse into children
+    unsigned int i_node_left = bvhnodes[i_bvhnode].i_node_left;
     unsigned int i_node_right = bvhnodes[i_bvhnode].i_node_right;
-    unsigned int i_node_left =bvhnodes[i_bvhnode].i_node_left;
-    // do something (hint recursion)
+
+    search_collision_in_bvh(is_hit, hit_depth, hit_pos, hit_normal, i_node_left, ray_org, ray_dir, tri2vtx, vtx2xyz, bvhnodes);
+    search_collision_in_bvh(is_hit, hit_depth, hit_pos, hit_normal, i_node_right, ray_org, ray_dir, tri2vtx, vtx2xyz, bvhnodes);
   }
 }
 
@@ -141,14 +173,15 @@ auto find_intersection_between_ray_and_triangle_mesh(
     const Eigen::MatrixX3i &tri2vtx,
     const Eigen::MatrixX3f &vtx2xyz,
     const std::vector<acg::BvhNode> &bvhnodes)
--> std::optional<std::pair<Eigen::Vector3f, Eigen::Vector3f>> {
+    -> std::optional<std::pair<Eigen::Vector3f, Eigen::Vector3f>>
+{
   bool is_hit = false;
   float hit_depth = 1000.;
   Eigen::Vector3f hit_pos;
   Eigen::Vector3f hit_normal;
 
   // for Problem 2,3,4, comment out from here
-  for (unsigned int i_tri = 0; i_tri < tri2vtx.rows(); ++i_tri) {
+  /* for (unsigned int i_tri = 0; i_tri < tri2vtx.rows(); ++i_tri) {
     const auto res = ray_triangle_intersection(ray_org, ray_dir, i_tri, tri2vtx, vtx2xyz);
     if (!res) { continue; }
     const auto& [q0,n0] = res.value();
@@ -159,7 +192,7 @@ auto find_intersection_between_ray_and_triangle_mesh(
       hit_pos = q0;
       hit_normal = n0;
     }
-  }
+  } */
   // comment out end
 
   // do not edit from here
@@ -168,15 +201,19 @@ auto find_intersection_between_ray_and_triangle_mesh(
       0, // root node index
       ray_org, ray_dir, tri2vtx, vtx2xyz, bvhnodes);
   //
-  if (!is_hit) { return std::nullopt; }
+  if (!is_hit)
+  {
+    return std::nullopt;
+  }
   return std::make_pair(hit_pos, hit_normal);
 }
 
 auto get_ray_from_camera(
     unsigned int width, unsigned int height,
-    unsigned int iw, unsigned int ih) -> std::pair<Eigen::Vector3f, Eigen::Vector3f> {
-  auto cam_ray_src = Eigen::Vector3f(0.5, 0.5, 2.0); // focus point
-  float ndc_x = ((float(iw) + 0.5f) * 2.f / float(width) - 1.f); // normalized device x-coordinate [-1, +1]
+    unsigned int iw, unsigned int ih) -> std::pair<Eigen::Vector3f, Eigen::Vector3f>
+{
+  auto cam_ray_src = Eigen::Vector3f(0.5, 0.5, 2.0);              // focus point
+  float ndc_x = ((float(iw) + 0.5f) * 2.f / float(width) - 1.f);  // normalized device x-coordinate [-1, +1]
   float ndc_y = (1.f - (float(ih) + 0.5f) * 2.f / float(height)); // normalized device y-coordinate [-1, +1]
   float sensor_size = 0.25;
   Eigen::Vector3f position_on_sensor = Eigen::Vector3f(ndc_x * sensor_size, ndc_y * sensor_size, -1.0) + cam_ray_src;
@@ -184,7 +221,8 @@ auto get_ray_from_camera(
   return {cam_ray_src, cam_ray_dir};
 }
 
-int main() {
+int main()
+{
   Eigen::MatrixX3f vtx2xyz;
   Eigen::MatrixX3i tri2vtx;
   std::vector<acg::BvhNode> bvhnodes;
@@ -197,35 +235,44 @@ int main() {
   std::vector<float> img_data_ao(img_height * img_width, 0.f);
   //
   std::chrono::system_clock::time_point start = std::chrono::system_clock::now(); // record starting time
-  for (unsigned int iw = 0; iw < img_width; ++iw) {
-    for (unsigned int ih = 0; ih < img_height; ++ih) {
-      const auto[cam_ray_src, cam_ray_dir] = get_ray_from_camera(img_width, img_height, iw, ih);
-      const auto& res = find_intersection_between_ray_and_triangle_mesh(
+  for (unsigned int iw = 0; iw < img_width; ++iw)
+  {
+    for (unsigned int ih = 0; ih < img_height; ++ih)
+    {
+      const auto [cam_ray_src, cam_ray_dir] = get_ray_from_camera(img_width, img_height, iw, ih);
+      const auto &res = find_intersection_between_ray_and_triangle_mesh(
           cam_ray_src, cam_ray_dir, tri2vtx, vtx2xyz, bvhnodes);
       // draw normal map
-      if (!res) {
+      if (!res)
+      {
         img_data_nrm[(ih * img_width + iw) * 3 + 0] = 0.f;
         img_data_nrm[(ih * img_width + iw) * 3 + 1] = 0.f;
         img_data_nrm[(ih * img_width + iw) * 3 + 2] = 0.f;
-      } else {
-        const auto&[pos, nrm] = res.value(); // position and normal of the first hit point
+      }
+      else
+      {
+        const auto &[pos, nrm] = res.value(); // position and normal of the first hit point
         img_data_nrm[(ih * img_width + iw) * 3 + 0] = nrm.x() * 0.5f + 0.5f;
         img_data_nrm[(ih * img_width + iw) * 3 + 1] = nrm.y() * 0.5f + 0.5f;
         img_data_nrm[(ih * img_width + iw) * 3 + 2] = nrm.z() * 0.5f + 0.5f;
       }
-      continue; // comment out here for Problem 3,4
+      // continue; // comment out here for Problem 3,4
       //
-      if (res) { // ambient occlusion computation
+      if (res)
+      { // ambient occlusion computation
         const unsigned int num_sample_ao = 100;
         float sum = 0;
-        for (unsigned int i_sample = 0; i_sample < num_sample_ao; ++i_sample) {
-          const auto&[pos, nrm] = res.value(); // position and normal of the first hit point
-          Eigen::Vector3f pos0 = pos + nrm * 0.001f; // offset the position in the direction of normal
-          const auto[dir, pdf] = sample_hemisphere(nrm); // direction of the sampled light position and its PDF
+        for (unsigned int i_sample = 0; i_sample < num_sample_ao; ++i_sample)
+        {
+          const auto &[pos, nrm] = res.value();           // position and normal of the first hit point
+          Eigen::Vector3f pos0 = pos + nrm * 0.001f;      // offset the position in the direction of normal
+          const auto [dir, pdf] = sample_hemisphere(nrm); // direction of the sampled light position and its PDF
           const auto res1 = find_intersection_between_ray_and_triangle_mesh(
               pos0, dir, tri2vtx, vtx2xyz, bvhnodes);
-          if (!res1) { // if the ray doe not hit anything
-            sum += 1.f; // Problem 3: This is a bug. write some correct code (hint: use `dir.dot(nrm)`, `pdf`, `M_PI`).
+          if (!res1)
+          { // if the ray dose not hit anything
+            // sum += 1.f; // Problem 3: This is a bug. write some correct code (hint: use `dir.dot(nrm)`, `pdf`, `M_PI`).
+            sum += dir.dot(nrm) / (pdf * M_PI);
           }
         }
         img_data_ao[ih * img_width + iw] = sum / float(num_sample_ao); // do not change
@@ -238,7 +285,8 @@ int main() {
 
   {
     std::vector<unsigned char> img_data_uchar(img_width * img_height * 3, 0);
-    for (unsigned int i = 0; i < img_width * img_height; ++i) {
+    for (unsigned int i = 0; i < img_width * img_height; ++i)
+    {
       img_data_uchar[i * 3 + 0] = static_cast<unsigned char>(img_data_nrm[i * 3 + 0] * 255.f);
       img_data_uchar[i * 3 + 1] = static_cast<unsigned char>(img_data_nrm[i * 3 + 1] * 255.f);
       img_data_uchar[i * 3 + 2] = static_cast<unsigned char>(img_data_nrm[i * 3 + 2] * 255.f);
@@ -249,7 +297,8 @@ int main() {
   }
   {
     std::vector<unsigned char> img_data_uchar(img_width * img_height, 0);
-    for (unsigned int i = 0; i < img_width * img_height; ++i) {
+    for (unsigned int i = 0; i < img_width * img_height; ++i)
+    {
       img_data_uchar[i] = static_cast<unsigned char>(img_data_ao[i] * 255.f);
     }
     stbi_write_png(
@@ -257,4 +306,3 @@ int main() {
         img_width, img_height, 1, img_data_uchar.data(), 0);
   }
 }
-
